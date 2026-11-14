@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>English Explorers</title>
+<style>
+:root{--bg:#f3f7ff;--card:#fff;--ink:#1d2a44;--mute:#63708a;--blue:#2f6fed;--blue2:#e3ecff;--green:#1e9e62;--green2:#dff5ea;--gold:#f5a400;--gold2:#fff3d1;--line:#d9e2f2;--red:#c9372c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Roboto,Arial,sans-serif;font-size:17px;line-height:1.45}
+#app{max-width:560px;margin:0 auto;padding:16px 16px 40px}
+h1{font-size:24px;margin:8px 0 4px}h2{font-size:19px;margin:0 0 8px}
+p{margin:6px 0}.mute{color:var(--mute);font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+button{font:inherit;color:inherit;cursor:pointer;border-radius:12px;border:2px solid var(--line);background:#fff;padding:12px 14px;min-height:48px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.big{display:block;width:100%;margin:8px 0;font-weight:600;font-size:18px;text-align:start}
+.primary{background:var(--blue);border-color:var(--blue);color:#fff;text-align:center}
+.primary:disabled{opacity:.55}
+.link{border:0;background:none;color:var(--blue);padding:6px;min-height:0;text-decoration:underline}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.stars{background:var(--gold2);border-radius:999px;padding:6px 12px;font-weight:700;white-space:nowrap}
+.days{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.day{padding:8px 4px;text-align:center;min-height:86px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:13px}
+.day .ic{font-size:24px}.day b{font-size:14px}
+.day.open{border-color:var(--blue);background:var(--blue2)}
+.day.done{border-color:var(--green);background:var(--green2)}
+.day.locked,.day.soon{color:var(--mute);background:#eef1f7;cursor:default}
+.badge{display:inline-block;background:var(--green2);color:var(--green);border-radius:999px;padding:2px 10px;font-size:13px;font-weight:700}
+.q{margin:14px 0 6px;font-weight:600}
+.opts{display:grid;gap:8px}
+.opt{text-align:start}.opt.sel{border-color:var(--blue);background:var(--blue2);font-weight:600}
+.opt.right{border-color:var(--green);background:var(--green2)}
+.read{background:#fffdf3;border:1px solid #f0e3b0;border-radius:12px;padding:12px;font-size:19px;line-height:1.7}
+.say{font-size:19px;margin:6px 0}
+.ar{direction:rtl;text-align:right;background:#f6f8fc;border-radius:12px;padding:10px 14px;font-size:16px}
+.ar ol{margin:4px 0;padding-inline-start:22px}
+input[type=text]{font:inherit;width:100%;padding:12px;border:2px solid var(--line);border-radius:12px;margin:6px 0}
+.words{font-size:26px;font-weight:700;letter-spacing:1px;text-align:center;margin:8px 0}
+.ok{background:var(--green2);color:#0f6b40;border-radius:12px;padding:10px 12px;margin:10px 0;font-weight:600}
+.warn{background:#fdeceb;color:var(--red);border-radius:12px;padding:10px 12px;margin:10px 0}
+.key{background:var(--gold2);border-radius:12px;padding:10px 12px;margin:10px 0}
+img.prev{max-width:100%;border-radius:12px;margin-top:8px}
+audio{width:100%;margin-top:8px}
+.center{text-align:center}.huge{font-size:64px;margin:10px 0}
+.rec{background:#fdeceb;border-color:var(--red)}
+</style>
+</head>
+<body>
+<div id="app"><p class="center mute">Loading…</p></div>
+<script>
+var S = { cls: null, name: null, app: null, task: null, ans: {}, photo: '', voice: '' };
+var $app = document.getElementById('app');
+
+var API = 'https://script.google.com/macros/s/AKfycby7aIhrav4YkOPte6hc9jN2qVtIT3K2zHPJMff-k0jSpHOO5U4qpXx6gLSfoYIMppgs/exec';
+function call(fn) {
+  var args = [].slice.call(arguments, 1);
+  return fetch(API, { method: 'POST', body: JSON.stringify({ fn: fn, args: args }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { if (!j.ok) throw new Error(j.error); return j.data; })
+    .catch(function (e) { throw (e && e.message) ? e.message : String(e); });
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function remember() { try { localStorage.setItem('ee_who', JSON.stringify({ cls: S.cls, name: S.name })); } catch (e) {} }
+function recall() { try { return JSON.parse(localStorage.getItem('ee_who') || 'null'); } catch (e) { return null; } }
+function forget() { try { localStorage.removeItem('ee_who'); } catch (e) {} }
+function fail(msg) { $app.innerHTML = '<div class="warn">Something went wrong. Please try again.<br><span class="mute">' + esc(msg) + '</span></div><button class="big primary" onclick="start()">Try again</button>'; }
+
+function start() {
+  var who = recall();
+  if (who && who.cls && who.name) { S.cls = who.cls; S.name = who.name; return loadHome(); }
+  $app.innerHTML = '<p class="center mute">Loading…</p>';
+  call('getApp').then(function (d) { S.roster = d.roster; pickClass(); }).catch(fail);
+}
+function pickClass() {
+  var h = '<h1>English Explorers 🌟</h1><p>Choose your class</p><p class="ar">اختر فصلك</p>';
+  Object.keys(S.roster).forEach(function (c) { h += '<button class="big" data-c="' + esc(c) + '">🏫 ' + esc(c) + '</button>'; });
+  $app.innerHTML = h;
+  [].forEach.call($app.querySelectorAll('[data-c]'), function (b) { b.onclick = function () { S.cls = b.dataset.c; pickName(); }; });
+}
+function pickName() {
+  var h = '<button class="link" onclick="pickClass()">← Back</button><h1>' + esc(S.cls) + '</h1><p>Tap your name</p><p class="ar">اضغط على اسمك</p>';
+  S.roster[S.cls].forEach(function (n) { h += '<button class="big" data-n="' + esc(n) + '">🙂 ' + esc(n) + '</button>'; });
+  $app.innerHTML = h;
+  [].forEach.call($app.querySelectorAll('[data-n]'), function (b) { b.onclick = function () { S.name = b.dataset.n; remember(); loadHome(); }; });
+}
+function switchUser() { forget(); S.cls = S.name = null; start(); }
+
+function loadHome() {
+  $app.innerHTML = '<p class="center mute">Loading…</p>';
+  call('getApp', S.cls, S.name).then(function (d) { S.app = d; home(); }).catch(function (e) { forget(); fail(e); });
+}
+function badge(n) { return n >= 10 ? 'Star Explorer' : n >= 8 ? 'Super Effort' : n >= 6 ? 'English Explorer' : ''; }
+function home() {
+  var a = S.app, h = '<div class="top"><h1>Hi, ' + esc(a.name) + '! 👋</h1><span class="stars">⭐ ' + a.total + '</span></div>' +
+    '<p class="mute">' + esc(a.cls) + ' · <button class="link" onclick="switchUser()">Not you?</button></p>';
+  a.weeks.forEach(function (w) {
+    var b = badge(w.stars);
+    h += '<div class="card"><div class="top"><h2>Week ' + w.w + '</h2><span>' + (b ? '<span class="badge">🏅 ' + b + '</span> ' : '') + '⭐ ' + w.stars + '/10</span></div><div class="days">';
+    w.days.forEach(function (d) {
+      var cls = d.status === 'open' ? (d.done ? 'done' : 'open') : d.status;
+      var ic = d.status === 'locked' ? '🔒' : d.status === 'soon' ? '⏳' : d.done ? '✅' : (d.task.icon || '▶️');
+      var sub = d.status === 'open' ? esc(d.task.title) : d.status === 'soon' ? 'Coming soon' : esc(d.label);
+      h += '<button class="day ' + cls + '" data-d="' + d.id + '"' + (d.status === 'open' ? '' : ' disabled') + '><span class="ic">' + ic + '</span><b>Day ' + d.id.slice(-1) + '</b><span>' + sub + '</span></button>';
+    });
+    h += '</div></div>';
+  });
+  h += '<p class="mute center">A new day opens at 4:00 p.m. · ⭐ Send before 8:00 p.m. for an Early Bird star</p>';
+  $app.innerHTML = h;
+  [].forEach.call($app.querySelectorAll('.day:not([disabled])'), function (b) { b.onclick = function () { openTask(b.dataset.d); }; });
+  window.scrollTo(0, 0);
+}
+function findDay(id) { var r = null; S.app.weeks.forEach(function (w) { w.days.forEach(function (d) { if (d.id === id) r = d; }); }); return r; }
+
+function openTask(id) {
+  var d = findDay(id), t = d.task; S.task = d; S.ans = {}; S.photo = ''; S.voice = '';
+  var h = '<button class="link" onclick="home()">← Back</button><h1>' + (t.icon || '') + ' ' + esc(t.title) + '</h1><p class="mute">' + id + ' · about ' + t.minutes + ' minutes</p>';
+  if (d.done) h += '<div class="ok">✅ You sent this task. You can do it again for practice.</div>';
+  if (t.ar) h += '<div class="ar"><b>📝 شرح المهمة:</b><ol>' + t.ar.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol></div>';
+  if (t.audio) h += '<div class="card"><h2>🎧 Listen</h2><button class="big primary" id="play">▶ Play the audio</button><div id="aud"></div><p class="mute">You can listen again.</p></div>';
+  t.steps.forEach(function (s, i) {
+    if (s.type === 'mcq') {
+      h += '<div class="q">' + esc(s.q) + '</div><div class="opts">';
+      s.opts.forEach(function (o, j) { h += '<button class="opt' + (d.keyOpen && s.ans === j ? ' right' : '') + '" data-i="' + i + '" data-j="' + j + '">' + esc(o) + (d.keyOpen && s.ans === j ? ' ✔️' : '') + '</button>'; });
+      h += '</div>';
+    } else if (s.type === 'read') h += '<div class="card"><div class="read">' + esc(s.text) + '</div></div>';
+    else if (s.type === 'say') h += '<div class="card"><h2>🗣️ Listen and say</h2>' + s.lines.map(function (l) { return '<div class="say">' + esc(l) + '</div>'; }).join('') + '</div>';
+    else if (s.type === 'spell') h += '<div class="card"><h2>🔤 Spell from memory</h2><div id="sp' + i + '"><p>Look 👀 and say 🗣️ the words:</p><div class="words">' + s.words.map(esc).join(' · ') + '</div><button class="big primary" data-cover="' + i + '">✋ Cover and write</button></div></div>';
+    else if (s.type === 'write') h += '<div class="card"><h2>✍️ Write</h2><p>' + esc(s.prompt) + '</p><p class="mute">Write in your notebook, then take a photo.</p><input type="file" accept="image/*" id="photo"><div id="pprev"></div></div>';
+    else if (s.type === 'speak') h += '<div class="card"><h2>🗣️ Speak</h2><p>' + esc(s.prompt) + '</p>' + (s.example ? '<p class="mute">Example: “' + esc(s.example) + '”</p>' : '') +
+      '<button class="big" id="rec">🎙️ Record my voice</button><div id="vprev"></div><p class="mute">Recording not working? Send a voice note to Mr. Kareem on WhatsApp.</p><p class="ar">إذا لم يعمل التسجيل، أرسلوا التسجيل الصوتي للمعلم على الواتساب.</p></div>';
+  });
+  if (d.keyOpen && (t.model || t.fix || t.check)) h += '<div class="key"><b>✅ Answers</b>' + (t.model ? '<p>Possible answer: “' + esc(t.model) + '”</p>' : '') + (t.check ? '<p>Check: ' + esc(t.check) + '</p>' : '') + (t.fix ? '<p>🔁 Fix it: ' + esc(t.fix) + '</p>' : '') + '</div>';
+  h += '<div id="msg"></div><button class="big primary" id="send">📤 Send my work</button>';
+  $app.innerHTML = h; window.scrollTo(0, 0);
+
+  [].forEach.call($app.querySelectorAll('.opt'), function (b) {
+    b.onclick = function () {
+      S.ans[b.dataset.i] = +b.dataset.j;
+      [].forEach.call($app.querySelectorAll('.opt[data-i="' + b.dataset.i + '"]'), function (x) { x.classList.toggle('sel', x === b); });
+    };
+  });
+  [].forEach.call($app.querySelectorAll('[data-cover]'), function (b) {
+    b.onclick = function () {
+      var i = b.dataset.cover, s = t.steps[i]; S.ans[i] = s.words.map(function () { return ''; });
+      document.getElementById('sp' + i).innerHTML = '<p>Now write the ' + s.words.length + ' words:</p>' + s.words.map(function (w, j) {
+        return '<input type="text" aria-label="Word ' + (j + 1) + '" placeholder="Word ' + (j + 1) + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-si="' + i + '" data-sj="' + j + '">'; }).join('');
+      [].forEach.call($app.querySelectorAll('[data-si="' + i + '"]'), function (inp) { inp.oninput = function () { S.ans[i][+inp.dataset.sj] = inp.value; }; });
+    };
+  });
+  var play = document.getElementById('play');
+  if (play) play.onclick = function () {
+    play.disabled = true; play.textContent = 'Loading…';
+    call('getAudio', id).then(function (src) {
+      document.getElementById('aud').innerHTML = '<audio controls src="' + src + '"></audio>';
+      play.style.display = 'none';
+      var a = $app.querySelector('#aud audio'); if (a && a.play) { var p = a.play(); if (p && p.catch) p.catch(function () {}); }
+    }).catch(function (e) { play.disabled = false; play.textContent = '▶ Play the audio'; document.getElementById('aud').innerHTML = '<div class="warn">Audio did not load. Try again.</div>'; });
+  };
+  var ph = document.getElementById('photo');
+  if (ph) ph.onchange = function () { if (ph.files[0]) shrink(ph.files[0]).then(function (u) { S.photo = u; document.getElementById('pprev').innerHTML = '<img class="prev" alt="Your writing" src="' + u + '">'; }); };
+  var vf = document.getElementById('vfile');
+  if (vf) vf.onchange = function () { if (vf.files[0]) toDataUrl(vf.files[0]).then(setVoice); };
+  var rec = document.getElementById('rec'); if (rec) rec.onclick = function () { toggleRec(rec); };
+  document.getElementById('send').onclick = function () { send(false); };
+}
+
+function toDataUrl(blob) { return new Promise(function (res) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.readAsDataURL(blob); }); }
+function shrink(file) {
+  return new Promise(function (res) {
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.8));
+    };
+    img.onerror = function () { toDataUrl(file).then(res); };
+    img.src = url;
+  });
+}
+function setVoice(u) { S.voice = u; document.getElementById('vprev').innerHTML = '<audio controls src="' + u + '"></audio><p class="ok">🎙️ Voice ready</p>'; }
+var R = null;
+function toggleRec(btn) {
+  if (R) { R.stop(); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { document.getElementById('vprev').innerHTML = '<div class="warn">Recording is not available on this phone. Please choose a voice file.</div>'; return; }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+    var chunks = []; R = new MediaRecorder(stream);
+    R.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
+    R.onstop = function () {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      var type = (R.mimeType || 'audio/webm').split(';')[0]; R = null;
+      btn.classList.remove('rec'); btn.textContent = '🎙️ Record again';
+      toDataUrl(new Blob(chunks, { type: type })).then(function (u) { setVoice(u.replace(/^data:[^,]*;base64,/, 'data:' + type + ';base64,')); });
+    };
+    R.start(); btn.classList.add('rec'); btn.textContent = '⏹ Stop recording';
+    setTimeout(function () { if (R && R.state === 'recording') R.stop(); }, 60000);
+  }).catch(function () { document.getElementById('vprev').innerHTML = '<div class="warn">The microphone is blocked. Allow it, or choose a voice file.</div>'; });
+}
+
+function send(force) {
+  var t = S.task.task, miss = [];
+  t.steps.forEach(function (s, i) {
+    if (s.type === 'mcq' && S.ans[i] === undefined && miss.indexOf('answer all the questions') < 0) miss.push('answer all the questions');
+    if (s.type === 'spell' && !(S.ans[i] || []).some(function (x) { return x; })) miss.push('write the spelling words');
+    if (s.type === 'write' && !S.photo) miss.push('add a photo of your writing');
+  });
+  var msg = document.getElementById('msg');
+  if (miss.length && !force) {
+    msg.innerHTML = '<div class="warn">Not finished yet. Please ' + miss.join(', ') + '.<br><button class="link" id="anyway">Send anyway</button></div>';
+    document.getElementById('anyway').onclick = function () { send(true); };
+    return;
+  }
+  var btn = document.getElementById('send'); btn.disabled = true; btn.textContent = 'Sending…'; msg.innerHTML = '';
+  call('submit', { cls: S.cls, name: S.name, taskId: S.task.id, answers: S.ans, photo: S.photo, voice: S.voice }).then(function (r) {
+    $app.innerHTML = '<div class="center"><div class="huge">🌟</div><h1>Well done, ' + esc(S.name) + '!</h1><p>Your work is sent to Mr. Kareem.</p>' +
+      '<p class="stars" style="display:inline-block">⭐ Star for finishing' + (r.early ? ' + ⭐ Early Bird' : '') + '</p><p class="ar">تم إرسال العمل، أحسنت!</p></div><button class="big primary" id="home">Back to my days</button>';
+    document.getElementById('home').onclick = loadHome;
+  }).catch(function (e) { btn.disabled = false; btn.textContent = '📤 Send my work'; msg.innerHTML = '<div class="warn">Not sent. Check the internet and try again.<br><span class="mute">' + esc(e) + '</span></div>'; });
+}
+start();
+</script>
+</body>
+</html>
